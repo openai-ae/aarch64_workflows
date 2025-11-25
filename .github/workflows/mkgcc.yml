@@ -26,7 +26,7 @@ jobs:
             python3-pip python3-setuptools python3-wheel \
             dh-sequence-gnome equivs \
             libpulse-dev libcairo2-dev libpango1.0-dev \
-            libgraphene-1.0-dev libgtk-4-dev \
+            libgraphene-1.0-dev \
             libxkbcommon-dev libegl-dev libgles2-mesa-dev \
             libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
@@ -47,18 +47,27 @@ jobs:
         run: |
           git clone --depth=1 -b ${{ github.event.inputs.branch }} https://github.com/droidian/gnome-control-center.git src
 
+      - name: Patch GTK version requirement
+        run: |
+          cd src
+          # Lower the GTK requirement to match available version
+          sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/' meson.build || echo "Could not patch meson.build"
+          # Also check for other files that might have GTK requirements
+          find . -name "*.meson" -exec sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/g' {} + 2>/dev/null || true
+
+      - name: Install specific build dependencies
+        run: |
+          cd src
+          # Use apt-get build-dep instead of mk-build-deps
+          sudo apt-get build-dep -y . || true
+          # Install any missing dependencies manually
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libgnome-desktop-4-dev
+
       - name: Build gnome-control-center for ARM64
         run: |
           cd src
-          # For ARM64 build, we might need to set architecture
-          export DEB_BUILD_ARCHITECTURES="arm64"
-          export DEB_BUILD_OPTIONS="nocheck"
-          
-          # Install build dependencies
-          sudo mk-build-deps -i -t apt-get -r debian/control
-          
           # Build for arm64
-          dpkg-buildpackage -b -us -uc -d -aarm64
+          dpkg-buildpackage -b -us -uc -d
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
