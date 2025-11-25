@@ -16,11 +16,34 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Install base build tools
+      - name: Debug environment
+        run: |
+          echo "=== Basic system info ==="
+          pwd
+          ls -la
+          echo "=== PATH ==="
+          echo $PATH
+          echo "=== Available commands ==="
+          ls /usr/bin/git || echo "No git in /usr/bin"
+          ls /bin/git || echo "No git in /bin"
+          ls /usr/local/bin/git || echo "No git in /usr/local/bin"
+
+      - name: Install essential packages
         run: |
           sudo apt-get update
+          sudo apt-get install -y git build-essential
+
+      - name: Verify git works
+        run: |
+          /usr/bin/git --version
+          git clone https://github.com/droidian/gnome-control-center.git test-clone
+          ls -la test-clone/
+          rm -rf test-clone
+
+      - name: Install all build dependencies
+        run: |
           sudo apt-get install -y \
-            build-essential meson ninja-build pkg-config \
+            meson ninja-build pkg-config \
             gettext libglib2.0-dev libgirepository1.0-dev \
             libgdk-pixbuf-2.0-dev libxml2-utils \
             python3-pip python3-setuptools python3-wheel \
@@ -39,11 +62,11 @@ jobs:
 
       - name: Build GTK 4.16 from source
         run: |
-          mkdir -p ~/src && cd ~/src
+          mkdir -p ~/src
+          cd ~/src
           git clone https://gitlab.gnome.org/GNOME/gtk.git
           cd gtk
           git checkout 4.16.10
-          # Build with GStreamer and Vulkan disabled to avoid dependency issues
           meson setup build --prefix=/opt/gtk4 --buildtype=release \
             -Dmedia-gstreamer=disabled \
             -Dvulkan=disabled
@@ -56,17 +79,11 @@ jobs:
           echo "LD_LIBRARY_PATH=/opt/gtk4/lib:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
           echo "PATH=/opt/gtk4/bin:\$PATH" >> $GITHUB_ENV
 
-      - name: Clone gnome-control-center
+      - name: Clone and build gnome-control-center
         run: |
-          which git
-          git --version
           git clone https://github.com/droidian/gnome-control-center.git src
           cd src
           git checkout ${{ github.event.inputs.branch }}
-
-      - name: Build gnome-control-center
-        run: |
-          cd src
           dpkg-buildpackage -b -us -uc -d
 
       - name: Upload artifacts
