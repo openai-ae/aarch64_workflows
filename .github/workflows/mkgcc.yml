@@ -50,6 +50,7 @@ jobs:
             libgudev-1.0-dev \
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
+            libpulse-dev \
             libadwaita-1-dev || true
 
       - name: Install meson + ninja
