@@ -26,12 +26,14 @@ jobs:
             python3-pip python3-setuptools python3-wheel \
             dh-sequence-gnome equivs \
             libpulse-dev libcairo2-dev libpango1.0-dev \
-            libgraphene-1.0-dev || true
+            libgraphene-1.0-dev libgtk-4-dev \
+            libxkbcommon-dev libegl-dev libgles2-mesa-dev \
+            libgles1-mesa-dev libgl1-mesa-dev libdrm-dev \
+            libgbm-dev libx11-dev
 
       - name: Build GTK 4.16 from source
         run: |
-          mkdir -p ~/src
-          cd ~/src
+          mkdir -p ~/src && cd ~/src
           git clone https://gitlab.gnome.org/GNOME/gtk.git
           cd gtk
           git checkout 4.16.10
@@ -39,11 +41,11 @@ jobs:
           meson compile -C build
           sudo meson install -C build
 
-      - name: Set GTK env globally
+      - name: Set GTK env
         run: |
-          echo "PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-          echo "PATH=/opt/gtk4/bin:$PATH" >> $GITHUB_ENV
+          echo "export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "export LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "export PATH=/opt/gtk4/bin:$PATH" >> $GITHUB_ENV
 
       - name: Clone gnome-control-center
         run: |
