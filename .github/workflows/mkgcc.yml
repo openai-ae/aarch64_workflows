@@ -16,59 +16,52 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Install system dependencies
+      - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git build-essential meson ninja-build pkg-config \
+            git build-essential pkg-config \
             gettext libglib2.0-dev libgirepository1.0-dev \
             libgdk-pixbuf-2.0-dev libxml2-utils \
             python3-pip python3-setuptools python3-wheel \
             dh-sequence-gnome equivs \
             libpulse-dev libcairo2-dev libpango1.0-dev \
-            libgraphene-1.0-dev \
+            libgraphene-1.0-dev libgtk-4-dev \
             libxkbcommon-dev libegl-dev libgles2-mesa-dev \
-            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev
-
-      - name: Build GTK 4.16 from source
-        run: |
-          mkdir -p ~/src
-          cd ~/src
-          git clone https://gitlab.gnome.org/GNOME/gtk.git
-          cd gtk
-          # Use a newer version that meets the requirement
-          git checkout 4.16.10
-          meson setup build --prefix=/opt/gtk4 --buildtype=release \
-            -Dmedia-gstreamer=disabled \
-            -Dvulkan=disabled
-          meson compile -C build
-          sudo meson install -C build
-
-      - name: Verify custom GTK installation
-        run: |
-          export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH
-          pkg-config --modversion gtk4
-          ls -la /opt/gtk4/lib/pkgconfig/gtk4.pc
+            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
+            gstreamer1.0-libav libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-good1.0-dev \
+            libgstreamer-plugins-bad1.0-dev \
+            libgstreamer1.0-dev \
+            gir1.2-gst-plugins-base-1.0
 
       - name: Clone gnome-control-center
         run: |
           git clone --depth=1 -b ${{ github.event.inputs.branch }} https://github.com/droidian/gnome-control-center.git src
 
-      - name: Build gnome-control-center with custom GTK
+      - name: Install specific GTK version if needed
         run: |
-          export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH
-          export LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH
-          export PATH=/opt/gtk4/bin:$PATH
-          
-          # Verify we're using the right GTK
-          echo "Using GTK version: $(pkg-config --modversion gtk4)"
-          
+          # Check current GTK version
+          pkg-config --modversion gtk4
+          # If we need a newer version, we can install from a PPA
+          sudo add-apt-repository ppa:gnome-team/gtk4 -y
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev
+
+      - name: Build gnome-control-center
+        run: |
           cd src
-          # Build with explicit environment
-          PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH \
-          LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH \
-          PATH=/opt/gtk4/bin:$PATH \
-          dpkg-buildpackage -b -us -uc -d
+          # First try to build with current dependencies
+          if dpkg-buildpackage -b -us -uc -d; then
+            echo "Build successful"
+          else
+            echo "Build failed, trying to fix dependencies..."
+            # Try to install build-dependencies
+            sudo mk-build-deps -i -t apt-get -r debian/control
+            dpkg-buildpackage -b -us -uc -d
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
