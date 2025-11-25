@@ -1,1 +1,20 @@
 
+name: Build CyrOS: Mobile gnome-control-center (gcc)
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build'
+        required: true
+        default: 'main'
+
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout code
+        run:
+          echo Hello, World!
