@@ -4,113 +4,46 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch to build'
+        description: "Branch to build"
         required: true
-        default: 'main'
-      use_gcc13:
-        description: 'Install and use gcc-13 (true/false)'
-        required: false
-        default: 'false'
+        default: "main"
 
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
 
-    env:
-      PREFIX: /usr
-
     steps:
-      - name: Prepare runner (deps)
+      - name: Install base tools
         run: |
-          set -eux
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential git curl ca-certificates pkg-config python3-pip python3-venv \
-            automake autoconf libtool cmake gettext intltool gdb \
-            libglib2.0-dev libgirepository1.0-dev libgdk-pixbuf2.0-dev libgtk-4-dev \
-            gir1.2-gtk-4.0 libpango1.0-dev libpolkit-gobject-1-dev libsecret-1-dev \
-            libsystemd-dev libx11-dev libxml2-dev libgudev-1.0-dev \
-            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-            gobject-introspection libgobject-introspection-dev pkgconf || true
-
-      - name: Optionally install gcc-13
-        if: ${{ github.event.inputs.use_gcc13 == 'true' }}
-        run: |
-          set -eux
-          sudo apt-get install -y gcc-13 g++-13 || true
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
-          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
-          gcc --version
+          sudo apt-get install -y git devscripts build-essential lintian
 
       - name: Clone Droidian gnome-control-center
         run: |
-          set -eux
-          rm -rf src
           git clone https://github.com/droidian/gnome-control-center.git src
           cd src
-          git fetch --all --tags
-          git checkout "${{ github.event.inputs.branch }}" || git checkout -b tmp-build "${{ github.event.inputs.branch }}" || true
-          git submodule update --init --recursive || true
-          pwd
-          ls -la
+          git checkout ${{ github.event.inputs.branch }} || true
 
-      - name: Install Python tooling (meson + ninja)
+      - name: Install package build dependencies
         run: |
-          python3 -m pip install --upgrade pip setuptools wheel
-          python3 -m pip install --upgrade meson ninja
-          meson --version
-          ninja --version
-
-      - name: Meson configure (fail and show logs on error)
-        run: |
-          set -eux
           cd src
-          rm -rf build
-          # use debug log level so meson writes detailed logs
-          MESON_ARGS="--prefix=$PREFIX -Dbuildtype=release -Dtests=false"
-          # Run meson setup and fail on error; if it fails print meson logs/stderr for debugging
-          if ! meson setup build $MESON_ARGS --log-level=debug; then
-            echo "meson setup failed - showing any meson logs and last lines from stderr"
-            if [ -f build/meson-logs/meson-log.txt ]; then
-              echo "===== meson-log.txt ====="
-              sed -n '1,500p' build/meson-logs/meson-log.txt || true
-              echo "===== end meson-log.txt ====="
-            fi
-            # show meson stderr captured in the CI log automatically; exit non-zero
-            exit 1
-          fi
-          echo "Meson configure succeeded."
+          sudo apt-get update
+          sudo apt-get install -y $(dpkg-checkbuilddeps 2>&1 | sed 's/dpkg-checkbuilddeps: error: Unmet build dependencies: //')
 
-      - name: Build
+      - name: Build Debian package
         run: |
-          set -eux
           cd src
-          ninja -C build -v
+          dpkg-buildpackage -b -us -uc
 
-      - name: Install to staging dir
+      - name: Gather artifacts
         run: |
-          set -eux
-          cd src
-          STAGING="$PWD/staging"
-          rm -rf "$STAGING"
-          mkdir -p "$STAGING"
-          ninja -C build install DESTDIR="$STAGING"
+          mkdir artifacts
+          cp -v *.deb artifacts/ || true
+          cp -v *.build artifacts/ || true
+          cp -v *.changes artifacts/ || true
 
-      - name: Package artifact
-        run: |
-          set -eux
-          cd src
-          tar -czf ../gnome-control-center-${{ github.event.inputs.branch }}.tar.gz staging
-
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: gnome-control-center-${{ github.event.inputs.branch }}
-          path: gnome-control-center-${{ github.event.inputs.branch }}.tar.gz
-
-      - name: On failure - output meson logs
-        if: failure()
-        run: |
-          echo "==== Meson logs (tail) ===="
-          sed -n '1,500p' src/build/meson-logs/meson-log.txt || true
-          echo "==== End Meson logs ===="
+          path: artifacts
