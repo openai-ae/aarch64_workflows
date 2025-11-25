@@ -10,40 +10,17 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Debug environment
-        run: |
-          echo "=== Basic system info ==="
-          pwd
-          ls -la
-          echo "=== PATH ==="
-          echo $PATH
-          echo "=== Available commands ==="
-          ls /usr/bin/git || echo "No git in /usr/bin"
-          ls /bin/git || echo "No git in /bin"
-          ls /usr/local/bin/git || echo "No git in /usr/local/bin"
-
-      - name: Install essential packages
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git build-essential
-
-      - name: Verify git works
-        run: |
-          /usr/bin/git --version
-          git clone https://github.com/droidian/gnome-control-center.git test-clone
-          ls -la test-clone/
-          rm -rf test-clone
-
-      - name: Install all build dependencies
-        run: |
           sudo apt-get install -y \
-            meson ninja-build pkg-config \
+            git build-essential meson ninja-build pkg-config \
             gettext libglib2.0-dev libgirepository1.0-dev \
             libgdk-pixbuf-2.0-dev libxml2-utils \
             python3-pip python3-setuptools python3-wheel \
@@ -57,8 +34,7 @@ jobs:
             gstreamer1.0-libav libgstreamer-plugins-base1.0-dev \
             libgstreamer-plugins-good1.0-dev \
             libgstreamer-plugins-bad1.0-dev \
-            libgstreamer1.0-dev \
-            gir1.2-gst-plugins-base-1.0
+            libgstreamer1.0-dev
 
       - name: Build GTK 4.16 from source
         run: |
@@ -73,17 +49,21 @@ jobs:
           meson compile -C build
           sudo meson install -C build
 
-      - name: Set GTK environment
+      - name: Set environment variables
         run: |
-          echo "PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:\$PKG_CONFIG_PATH" >> $GITHUB_ENV
-          echo "LD_LIBRARY_PATH=/opt/gtk4/lib:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
-          echo "PATH=/opt/gtk4/bin:\$PATH" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "PATH=/opt/gtk4/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Clone and build gnome-control-center
+      - name: Clone gnome-control-center
         run: |
           git clone https://github.com/droidian/gnome-control-center.git src
           cd src
           git checkout ${{ github.event.inputs.branch }}
+
+      - name: Build gnome-control-center
+        run: |
+          cd src
           dpkg-buildpackage -b -us -uc -d
 
       - name: Upload artifacts
