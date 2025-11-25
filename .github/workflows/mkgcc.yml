@@ -28,8 +28,7 @@ jobs:
             libpulse-dev libcairo2-dev libpango1.0-dev \
             libgraphene-1.0-dev libgtk-4-dev \
             libxkbcommon-dev libegl-dev libgles2-mesa-dev \
-            libgles1-mesa-dev libgl1-mesa-dev libdrm-dev \
-            libgbm-dev libx11-dev
+            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev
 
       - name: Build GTK 4.16 from source
         run: |
@@ -41,11 +40,14 @@ jobs:
           meson compile -C build
           sudo meson install -C build
 
-      - name: Set GTK env
+      - name: Set GTK environment
         run: |
-          echo "export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
-          echo "export LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-          echo "export PATH=/opt/gtk4/bin:$PATH" >> $GITHUB_ENV
+          export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH
+          export LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH
+          export PATH=/opt/gtk4/bin:$PATH
+          echo 'export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH' >> $GITHUB_ENV
+          echo 'export LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH' >> $GITHUB_ENV
+          echo 'export PATH=/opt/gtk4/bin:$PATH' >> $GITHUB_ENV
 
       - name: Clone gnome-control-center
         run: |
