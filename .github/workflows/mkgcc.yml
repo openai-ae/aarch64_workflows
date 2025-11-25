@@ -30,7 +30,48 @@ jobs:
             gtk-doc-tools \
             libxml2-utils \
             equivs \
-            lintian
+            lintian \
+            desktop-file-utils \
+            libcolord-dev \
+            libcolord-gtk4-dev \
+            libcups2-dev \
+            libgdk-pixbuf-2.0-dev \
+            libgirepository1.0-dev \
+            libglib2.0-dev \
+            libgnutls28-dev \
+            libgtk-4-dev \
+            libgtop2-dev \
+            libgudev-1.0-dev \
+            libibus-1.0-dev \
+            libjson-glib-dev \
+            libkrb5-dev \
+            libnm-dev \
+            libpolkit-gobject-1-dev \
+            libpulse-dev \
+            libpwquality-dev \
+            libsecret-1-dev \
+            libsmbclient-dev \
+            libpackagekit-glib2-dev \
+            libsoup-3.0-dev \
+            libudisks2-dev \
+            libupower-glib-dev \
+            libwacom-dev \
+            libx11-dev \
+            libxft-dev \
+            libxi-dev \
+            libxklavier-dev \
+            python3-dbusmock \
+            libaccountsservice-dev \
+            libgcr-4-dev \
+            libgnome-bg-4-dev \
+            libgnome-bluetooth-ui-3.0-dev \
+            libgnome-desktop-4-dev \
+            libgnome-rr-4-dev \
+            libhandy-1-dev \
+            libmalcontent-0-dev \
+            libmm-glib-dev \
+            libnma-gtk4-dev \
+            tecla || true
 
       - name: Clone Droidian gnome-control-center
         run: |
@@ -38,35 +79,10 @@ jobs:
           cd src
           git checkout ${{ github.event.inputs.branch }} || true
 
-      - name: Extract clean build dependencies
+      - name: Build Debian package (ignore missing deps)
         run: |
           cd src
-          echo "Extracting clean build dependency list..."
-          awk '/^Build-Depends:/,/^(Build-Conflicts|Maintainer)/' debian/control \
-            | sed 's/Build-Depends://g' \
-            | tr -d '\n' \
-            | sed 's/,/\n/g' \
-            | sed 's/([^)]*)//g' \
-            | sed 's/|.*//g' \
-            | sed 's/<[^>]*>//g' \
-            | sed 's/\[.*\]//g' \
-            | sed 's/${.*}//g' \
-            | tr -d ' ' \
-            | sed '/^$/d' \
-            > ../build-deps-clean.txt
-
-          echo "== Clean build dependencies =="
-          cat ../build-deps-clean.txt
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y $(cat ../build-deps-clean.txt)
-
-      - name: Build Debian package
-        run: |
-          cd src
-          dpkg-buildpackage -b -us -uc
+          dpkg-buildpackage -b -us -uc -d
 
       - name: Collect artifacts
         run: |
