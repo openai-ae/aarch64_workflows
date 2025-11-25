@@ -16,40 +16,19 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Debug system state
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "PATH: $PATH"
-          which git || echo "Git not found in PATH"
-          ls -la /usr/bin/git || echo "Git binary not found"
-
-      - name: Install Git with apt update
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git
-          which git
-          git --version
-
       - name: Install base build tools
         run: |
+          sudo apt-get update
           sudo apt-get install -y \
             build-essential meson ninja-build pkg-config \
             gettext libglib2.0-dev libgirepository1.0-dev \
             libgdk-pixbuf-2.0-dev libxml2-utils \
             python3-pip python3-setuptools python3-wheel \
-            dh-sequence-gnome equivs
-
-      - name: Install GTK and graphics dependencies
-        run: |
-          sudo apt-get install -y \
+            dh-sequence-gnome equivs \
             libpulse-dev libcairo2-dev libpango1.0-dev \
             libgraphene-1.0-dev libgtk-4-dev \
             libxkbcommon-dev libegl-dev libgles2-mesa-dev \
-            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev
-
-      - name: Install GStreamer dependencies
-        run: |
-          sudo apt-get install -y \
+            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
             gstreamer1.0-libav libgstreamer-plugins-base1.0-dev \
@@ -79,6 +58,8 @@ jobs:
 
       - name: Clone gnome-control-center
         run: |
+          which git
+          git --version
           git clone https://github.com/droidian/gnome-control-center.git src
           cd src
           git checkout ${{ github.event.inputs.branch }}
