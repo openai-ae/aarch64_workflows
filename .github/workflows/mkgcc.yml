@@ -32,32 +32,28 @@ jobs:
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
             gstreamer1.0-libav libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-good1.0-dev \
             libgstreamer-plugins-bad1.0-dev \
+            libgstreamer1.0-dev \
             gir1.2-gst-plugins-base-1.0
 
-      - name: Search for GStreamer player packages
-        run: |
-          apt-cache search gstreamer | grep -i player
-          apt-cache search libgstreamer | grep -i player
-
-      - name: Install all GStreamer development packages
-        run: |
-          sudo apt-get install -y \
-            libgstreamer1.0-dev \
-            libgstreamer-plugins-base1.0-dev \
-            libgstreamer-plugins-good1.0-dev \
-            libgstreamer-plugins-bad1.0-dev
-
-      - name: Build GTK 4.16 from source
+      - name: Build GTK 4.16 from source (try with GStreamer)
         run: |
           mkdir -p ~/src && cd ~/src
           git clone https://gitlab.gnome.org/GNOME/gtk.git
           cd gtk
           git checkout 4.16.10
-          # Try with auto-features enabled to see what's available
-          meson setup build --prefix=/opt/gtk4 --buildtype=release -Dmedia-gstreamer=auto
-          meson compile -C build
-          sudo meson install -C build
+          # First try building with GStreamer auto-detection
+          if meson setup build --prefix=/opt/gtk4 --buildtype=release -Dmedia-gstreamer=auto; then
+            echo "GTK configured successfully with GStreamer"
+            meson compile -C build
+            sudo meson install -C build
+          else
+            echo "GTK configuration failed, retrying without GStreamer"
+            meson setup build --prefix=/opt/gtk4 --buildtype=release -Dmedia-gstreamer=disabled --wipe
+            meson compile -C build
+            sudo meson install -C build
+          fi
 
       - name: Set GTK environment
         run: |
