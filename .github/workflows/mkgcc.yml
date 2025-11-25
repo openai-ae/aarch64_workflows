@@ -34,9 +34,12 @@ jobs:
             gstreamer1.0-libav libgstreamer-plugins-base1.0-dev \
             gir1.2-gst-plugins-base-1.0
 
-
-
-
+      - name: Install GStreamer player development package
+        run: |
+          sudo apt-get install -y \
+            libgstreamer-plugins-bad1.0-dev \
+            libgstreamer-player-1.0-dev \
+            gstreamer1.0-player-1.0
 
       - name: Build GTK 4.16 from source
         run: |
@@ -50,9 +53,9 @@ jobs:
 
       - name: Set GTK environment
         run: |
-          echo "export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:\$PKG_CONFIG_PATH" >> $GITHUB_ENV
-          echo "export LD_LIBRARY_PATH=/opt/gtk4/lib:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
-          echo "export PATH=/opt/gtk4/bin:\$PATH" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:\$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/opt/gtk4/lib:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "PATH=/opt/gtk4/bin:\$PATH" >> $GITHUB_ENV
 
       - name: Clone gnome-control-center
         run: |
