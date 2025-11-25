@@ -20,7 +20,7 @@ jobs:
       PREFIX: /usr
 
     steps:
-      - name: Prepare runner
+      - name: Prepare runner (deps)
         run: |
           set -eux
           sudo apt-get update
@@ -30,8 +30,8 @@ jobs:
             libglib2.0-dev libgirepository1.0-dev libgdk-pixbuf2.0-dev libgtk-4-dev \
             gir1.2-gtk-4.0 libpango1.0-dev libpolkit-gobject-1-dev libsecret-1-dev \
             libsystemd-dev libx11-dev libxml2-dev libgudev-1.0-dev \
-            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gobject-introspection \
-            libgobject-introspection-dev pkgconf || true
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gobject-introspection libgobject-introspection-dev pkgconf || true
 
       - name: Optionally install gcc-13
         if: ${{ github.event.inputs.use_gcc13 == 'true' }}
@@ -40,38 +40,46 @@ jobs:
           sudo apt-get install -y gcc-13 g++-13 || true
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
           sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
-          echo "Using gcc: $(gcc --version | head -n1)"
+          gcc --version
 
-      - name: Clone Droidian repo and prepare sources
+      - name: Clone Droidian gnome-control-center
         run: |
           set -eux
+          rm -rf src
           git clone https://github.com/droidian/gnome-control-center.git src
           cd src
           git fetch --all --tags
           git checkout "${{ github.event.inputs.branch }}" || git checkout -b tmp-build "${{ github.event.inputs.branch }}" || true
-          # try submodules if they exist
           git submodule update --init --recursive || true
-          ls -la
           pwd
-          echo "Repo ready in src/"
+          ls -la
 
-      - name: Install Python tooling
+      - name: Install Python tooling (meson + ninja)
         run: |
           python3 -m pip install --upgrade pip setuptools wheel
           python3 -m pip install --upgrade meson ninja
+          meson --version
+          ninja --version
 
-      - name: Meson configure (verbose)
+      - name: Meson configure (fail and show logs on error)
         run: |
           set -eux
           cd src
           rm -rf build
-          # allow meson to fetch wraps, but verbose so logs contain errors
+          # use debug log level so meson writes detailed logs
           MESON_ARGS="--prefix=$PREFIX -Dbuildtype=release -Dtests=false"
-          meson setup build $MESON_ARGS --verbose || true
-          # print critical log for CI
-          echo "===== meson log head ====="
-          sed -n '1,400p' build/meson-logs/meson-log.txt || true
-          echo "===== end meson log head ====="
+          # Run meson setup and fail on error; if it fails print meson logs/stderr for debugging
+          if ! meson setup build $MESON_ARGS --log-level=debug; then
+            echo "meson setup failed - showing any meson logs and last lines from stderr"
+            if [ -f build/meson-logs/meson-log.txt ]; then
+              echo "===== meson-log.txt ====="
+              sed -n '1,500p' build/meson-logs/meson-log.txt || true
+              echo "===== end meson-log.txt ====="
+            fi
+            # show meson stderr captured in the CI log automatically; exit non-zero
+            exit 1
+          fi
+          echo "Meson configure succeeded."
 
       - name: Build
         run: |
@@ -90,6 +98,7 @@ jobs:
 
       - name: Package artifact
         run: |
+          set -eux
           cd src
           tar -czf ../gnome-control-center-${{ github.event.inputs.branch }}.tar.gz staging
 
@@ -102,8 +111,6 @@ jobs:
       - name: On failure - output meson logs
         if: failure()
         run: |
-          echo "==== Meson logs ===="
+          echo "==== Meson logs (tail) ===="
           sed -n '1,500p' src/build/meson-logs/meson-log.txt || true
-          echo "==== Ninja build log tail (/var/log) ===="
-          if [ -f src/build/meson-logs/meson-log.txt ]; then tail -n 200 src/build/meson-logs/meson-log.txt || true; fi
-          find src -maxdepth 3 -type f | sed -n '1,200p' || true
+          echo "==== End Meson logs ===="
