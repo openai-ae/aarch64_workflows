@@ -1,75 +1,66 @@
-name: Build GNOME Control Center ARM64
+name: Build CyrOS Mobile gnome-control-center
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to build"
+        required: true
+        default: "main"
 
 jobs:
-  build-arm64:
-    runs-on: ubuntu-24.04
-    env:
-      DEBIAN_FRONTEND: noninteractive
+  build:
+    runs-on: ubuntu-24.04-arm
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - name: Install required system packages
+      - name: Install base build tools
         run: |
-          sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential meson ninja-build pkg-config git \
-            libcairo2-dev libglib2.0-dev libgirepository1.0-dev \
-            libgdk-pixbuf-2.0-dev libxml2-utils python3-pip python3-setuptools python3-wheel \
-            libpango1.0-dev libgraphene-1.0-dev libgtk-4-dev libepoxy-dev libxkbcommon-dev \
-            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-            gobject-introspection dh-sequence-gnome equivs \
-            desktop-file-utils gnome-settings-daemon-dev \
-            gsettings-desktop-schemas-dev libaccountsservice-dev \
-            libadwaita-1-dev libcolord-dev libcolord-gtk4-dev \
-            libcups2-dev libgcr-4-dev libgnome-bg-4-dev \
-            libgnome-bluetooth-ui-3.0-dev libgnome-desktop-4-dev \
-            libgnome-rr-4-dev libgoa-1.0-dev libgoa-backend-1.0-dev \
-            libgsound-dev libhandy-1-dev libibus-1.0-dev libjson-glib-dev \
-            libkrb5-dev libmalcontent-0-dev libmm-glib-dev libnm-dev \
-            libnma-gtk4-dev libpolkit-gobject-1-dev libpulse-dev \
-            libpwquality-dev libsecret-1-dev libsmbclient-dev \
-            libpackagekit-glib2-dev libsoup-3.0-dev libudisks2-dev \
-            libupower-glib-dev libwacom-dev libx11-dev libxft-dev libxi-dev libxklavier-dev \
-            python3-dbusmock tecla
+            build-essential git meson ninja-build pkg-config \
+            gettext libglib2.0-dev libgirepository1.0-dev \
+            libgdk-pixbuf-2.0-dev libxml2-utils \
+            python3-pip python3-setuptools python3-wheel \
+            dh-sequence-gnome equivs \
+            libpulse-dev libcairo2-dev libpango1.0-dev \
+            libgraphene-1.0-dev || true
 
-      - name: Clone GTK 4.16 source
+      - name: Build GTK 4.16 from source
         run: |
-          mkdir -p ~/src && cd ~/src
+          mkdir -p ~/src
+          cd ~/src
           git clone https://gitlab.gnome.org/GNOME/gtk.git
           cd gtk
           git checkout 4.16.10
-          mkdir -p build
+          meson setup build --prefix=/opt/gtk4 --buildtype=release
+          meson compile -C build
+          sudo meson install -C build
 
-      - name: Build GTK 4.16
+      - name: Set GTK env globally
         run: |
-          cd ~/src/gtk/build
-          meson setup . ../ -Dbuildtype=release -Ddocumentation=true -Dpython.bytecompile=-1
-          meson compile -C .
+          echo "PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "PATH=/opt/gtk4/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Clone GNOME Control Center
+      - name: Clone gnome-control-center
         run: |
-          mkdir -p ~/src && cd ~/src
-          git clone https://gitlab.gnome.org/GNOME/gnome-control-center.git
-          cd gnome-control-center
-          git checkout 48.2
-          mkdir -p build
+          git clone https://github.com/droidian/gnome-control-center.git src
+          cd src
+          git checkout ${{ github.event.inputs.branch }}
 
-      - name: Build GNOME Control Center
+      - name: Build gnome-control-center
         run: |
-          cd ~/src/gnome-control-center/build
-          meson setup . ../ -Dbuildtype=release -Dtests=false --prefix=/usr
-          meson compile -C .
+          cd src
+          dpkg-buildpackage -b -us -uc -d
 
-      - name: Package GNOME Control Center
-        run: |
-          cd ~/src/gnome-control-center
-          sudo ninja -C build install
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnome-control-center-build
+          path: |
+            *.deb
+            *.changes
+            *.build
