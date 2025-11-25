@@ -13,87 +13,53 @@ jobs:
     runs-on: ubuntu-24.04-arm
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
 
       - name: Install base build tools
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git \
-            devscripts \
-            build-essential \
-            meson \
-            ninja-build \
-            pkg-config \
-            gettext \
-            gtk-doc-tools \
-            libxml2-utils \
-            equivs \
-            lintian \
-            desktop-file-utils \
-            libcolord-dev \
-            libcolord-gtk4-dev \
-            libcups2-dev \
-            libgdk-pixbuf-2.0-dev \
-            libgirepository1.0-dev \
-            libglib2.0-dev \
-            libgnutls28-dev \
-            libgtk-4-dev \
-            libgtop2-dev \
-            libgudev-1.0-dev \
-            libibus-1.0-dev \
-            libjson-glib-dev \
-            libkrb5-dev \
-            libnm-dev \
-            libpolkit-gobject-1-dev \
-            libpulse-dev \
-            libpwquality-dev \
-            libsecret-1-dev \
-            libsmbclient-dev \
-            libpackagekit-glib2-dev \
-            libsoup-3.0-dev \
-            libudisks2-dev \
-            libupower-glib-dev \
-            libwacom-dev \
-            libx11-dev \
-            libxft-dev \
-            libxi-dev \
-            libxklavier-dev \
-            python3-dbusmock \
-            libaccountsservice-dev \
-            libgcr-4-dev \
-            libgnome-bg-4-dev \
-            libgnome-bluetooth-ui-3.0-dev \
-            libgnome-desktop-4-dev \
-            libgnome-rr-4-dev \
-            libhandy-1-dev \
-            libmalcontent-0-dev \
-            libmm-glib-dev \
-            libnma-gtk4-dev \
-            tecla \
-            dh-sequence-gnome || true
+            build-essential git meson ninja-build pkg-config \
+            gettext libglib2.0-dev libgirepository1.0-dev \
+            libgdk-pixbuf-2.0-dev libxml2-utils \
+            python3-pip python3-setuptools python3-wheel \
+            dh-sequence-gnome equivs \
+            libpulse-dev libcairo2-dev libpango1.0-dev \
+            libgraphene-1.0-dev libgtk-4-dev || true
 
-      - name: Clone Droidian gnome-control-center
+      - name: Build GTK 4.16 from source
+        run: |
+          mkdir -p ~/src && cd ~/src
+          git clone https://gitlab.gnome.org/GNOME/gtk.git
+          cd gtk
+          git checkout 4.16.10  # or latest stable ≥ 4.15.2
+          meson setup build --prefix=/opt/gtk4 --buildtype=release
+          meson compile -C build
+          sudo meson install -C build
+
+      - name: Set GTK env
+        run: |
+          export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH
+          export LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH
+          export PATH=/opt/gtk4/bin:$PATH
+
+      - name: Clone gnome-control-center
         run: |
           git clone https://github.com/droidian/gnome-control-center.git src
           cd src
-          git checkout ${{ github.event.inputs.branch }} || true
+          git checkout ${{ github.event.inputs.branch }}
 
-      - name: Build Debian package (ignore missing deps)
+      - name: Build gnome-control-center
         run: |
           cd src
           dpkg-buildpackage -b -us -uc -d
-
-      - name: Collect artifacts
-        run: |
-          mkdir -p artifacts
-          cp -v *.deb artifacts/ || true
-          cp -v *.changes artifacts/ || true
-          cp -v *.build artifacts/ || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: gnome-control-center-build
-          path: artifacts
+          path: |
+            *.deb
+            *.changes
+            *.build
