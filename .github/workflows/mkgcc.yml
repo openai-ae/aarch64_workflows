@@ -19,8 +19,8 @@ jobs:
           sudo apt-get install -y \
             git \
             devscripts \
-            build-essential \
             equivs \
+            build-essential \
             lintian
 
       - name: Clone Droidian gnome-control-center
@@ -29,11 +29,14 @@ jobs:
           cd src
           git checkout ${{ github.event.inputs.branch }} || true
 
-      - name: Generate & install build-deps safely
+      - name: Install build dependencies (correct + sudo)
         run: |
           cd src
-          # Create a temporary control file
-          mk-build-deps --install --remove --tool "apt-get -y --no-install-recommends" debian/control
+          sudo mk-build-deps \
+            --install \
+            --remove \
+            --tool "apt-get -y --no-install-recommends" \
+            debian/control
 
       - name: Build Debian package
         run: |
