@@ -28,7 +28,10 @@ jobs:
             libpulse-dev libcairo2-dev libpango1.0-dev \
             libgraphene-1.0-dev libgtk-4-dev \
             libxkbcommon-dev libegl-dev libgles2-mesa-dev \
-            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev
+            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
+            gstreamer1.0-libav gstreamer1.0-tools
 
       - name: Build GTK 4.16 from source
         run: |
@@ -42,12 +45,9 @@ jobs:
 
       - name: Set GTK environment
         run: |
-          export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH
-          export LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH
-          export PATH=/opt/gtk4/bin:$PATH
-          echo 'export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:$PKG_CONFIG_PATH' >> $GITHUB_ENV
-          echo 'export LD_LIBRARY_PATH=/opt/gtk4/lib:$LD_LIBRARY_PATH' >> $GITHUB_ENV
-          echo 'export PATH=/opt/gtk4/bin:$PATH' >> $GITHUB_ENV
+          echo "export PKG_CONFIG_PATH=/opt/gtk4/lib/pkgconfig:\$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          echo "export LD_LIBRARY_PATH=/opt/gtk4/lib:\$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          echo "export PATH=/opt/gtk4/bin:\$PATH" >> $GITHUB_ENV
 
       - name: Clone gnome-control-center
         run: |
