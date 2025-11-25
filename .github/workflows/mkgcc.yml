@@ -1,5 +1,5 @@
 
-name: Build CyrOS: Mobile gnome-control-center (gcc)
+name: Build CyrOS Mobile gnome-control-center (gcc)
 
 on:
   workflow_dispatch:
