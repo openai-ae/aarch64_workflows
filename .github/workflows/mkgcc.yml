@@ -29,58 +29,69 @@ jobs:
             libgraphene-1.0-dev libgtk-4-dev libadwaita-1-dev \
             libgnome-desktop-4-dev libibus-1.0-dev \
             libxkbcommon-dev libegl-dev libgles2-mesa-dev \
-            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev \
-            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
-            gstreamer1.0-libav libgstreamer-plugins-base1.0-dev \
-            libgstreamer-plugins-good1.0-dev \
-            libgstreamer-plugins-bad1.0-dev \
-            libgstreamer1.0-dev \
-            gir1.2-gst-plugins-base-1.0
-
-      - name: Check system architecture and tools
-        run: |
-          echo "Architecture: $(uname -m)"
-          echo "GTK version: $(pkg-config --modversion gtk4)"
-          echo "Meson version: $(meson --version || echo 'Meson not found')"
-          echo "Ninja version: $(ninja --version || echo 'Ninja not found')"
+            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev
 
       - name: Clone gnome-control-center
         run: |
           git clone --depth=1 -b ${{ github.event.inputs.branch }} https://github.com/droidian/gnome-control-center.git src
 
-      - name: Patch GTK version requirement
+      - name: Properly patch GTK version requirement
         run: |
           cd src
-          # Lower the GTK requirement to match available version
-          sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/' meson.build || echo "Could not patch main meson.build"
-          # Check for other files that might have GTK requirements
-          find . -name "*.meson" -o -name "meson.build" | xargs grep -l "gtk4" 2>/dev/null | head -5
-          # Patch any found files
-          find . -name "*.meson" -exec sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/g' {} + 2>/dev/null || true
-          find . -name "meson.build" -exec sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/g' {} + 2>/dev/null || true
+          echo "=== Patching GTK version requirements ==="
+          # Find and patch all GTK version requirements
+          find . -type f \( -name "meson.build" -o -name "*.meson" \) -exec grep -l "gtk4" {} \; | while read file; do
+            echo "Patching file: $file"
+            # Use sed with backup and proper regex
+            sudo sed -i.bak 's/gtk4 >= [0-9]\+\.[0-9]\+\.[0-9]\+/gtk4 >= 4.14.0/g' "$file"
+            sudo sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/g' "$file"
+          done
+          
+          # Verify the patch worked
+          echo "=== Checking GTK requirements after patching ==="
+          find . -type f \( -name "meson.build" -o -name "*.meson" \) -exec grep -h "gtk4" {} \; | grep ">=" | head -5
 
-      - name: Install remaining build dependencies
+      - name: Try alternative branch with older GTK requirements
         run: |
           cd src
-          # Install build dependencies using apt
-          sudo apt-get build-dep -y . || true
-          # Install any commonly missing dependencies
-          sudo apt-get install -y \
-            libmalcontent-0-dev \
-            libgnome-bluetooth-3.0-dev \
-            libnm-dev \
-            libnma-dev \
-            libcolord-dev \
-            libgeoclue-2-dev \
-            libgweather-4-dev \
-            libpolkit-gobject-1-dev
+          # If patching doesn't work, try an older branch
+          git branch -a | grep -E "gnome-4[567]" | head -3
+          # Uncomment the line below if patching fails
+          # git checkout group/next/gnome-47 || git checkout group/next/gnome-46
 
-      - name: Build gnome-control-center for ARM64
+      - name: Build with direct Meson approach
         run: |
           cd src
-          # Build for arm64
-          dpkg-buildpackage -b -us -uc -d
+          # Build directly with Meson to have more control
+          meson setup build --prefix=/usr --buildtype=plain \
+            -Dlocation-services=enabled \
+            -Dprivileged_group=sudo \
+            -Ddocumentation=true \
+            -Ddistributor_logo=/usr/share/pixmaps/ubuntu-logo-text.png \
+            -Ddark_mode_distributor_logo=/usr/share/pixmaps/ubuntu-logo-text-dark.png \
+            -Ddroidian=true \
+            -Dgtk4:version_override=true
+          
+          meson compile -C build
+          
+          # Create installation directory and package
+          mkdir -p debian/gnome-control-center
+          DESTDIR=$(pwd)/debian/gnome-control-center meson install -C build
+          
+          # Create DEBIAN control file
+          mkdir -p debian/gnome-control-center/DEBIAN
+          cat > debian/gnome-control-center/DEBIAN/control << EOF
+          Package: gnome-control-center
+          Version: 48.2-1cyros
+          Architecture: arm64
+          Maintainer: CyrOS Build <build@cyros.org>
+          Description: GNOME Control Center for CyrOS Mobile
+           Custom build for CyrOS Mobile with ARM64 support.
+          EOF
+          
+          # Build the deb package
+          dpkg-deb --build debian/gnome-control-center
+          mv debian/gnome-control-center.deb ../gnome-control-center_48.2-1cyros_arm64.deb
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -88,5 +99,3 @@ jobs:
           name: gnome-control-center-arm64-build
           path: |
             *.deb
-            *.changes
-            *.build
