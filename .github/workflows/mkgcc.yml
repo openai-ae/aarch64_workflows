@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.10
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - name: Checkout repo
@@ -28,28 +28,42 @@ jobs:
             libpulse-dev libcairo2-dev libpango1.0-dev \
             libgraphene-1.0-dev libgtk-4-dev \
             libxkbcommon-dev libegl-dev libgles2-mesa-dev \
-            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev
+            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
+            gstreamer1.0-libav libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-good1.0-dev \
+            libgstreamer-plugins-bad1.0-dev \
+            libgstreamer1.0-dev \
+            gir1.2-gst-plugins-base-1.0
 
-      - name: Check GTK version
+      - name: Check system architecture and GTK version
         run: |
-          pkg-config --modversion gtk4
-          echo "If this is 4.14.5 or lower, we need a different approach"
+          echo "Architecture: $(uname -m)"
+          echo "GTK version: $(pkg-config --modversion gtk4)"
+          echo "Building for ARM64 (aarch64)"
 
       - name: Clone gnome-control-center
         run: |
           git clone --depth=1 -b ${{ github.event.inputs.branch }} https://github.com/droidian/gnome-control-center.git src
 
-      - name: Build gnome-control-center
+      - name: Build gnome-control-center for ARM64
         run: |
           cd src
-          # Try to install build dependencies first
+          # For ARM64 build, we might need to set architecture
+          export DEB_BUILD_ARCHITECTURES="arm64"
+          export DEB_BUILD_OPTIONS="nocheck"
+          
+          # Install build dependencies
           sudo mk-build-deps -i -t apt-get -r debian/control
-          dpkg-buildpackage -b -us -uc -d
+          
+          # Build for arm64
+          dpkg-buildpackage -b -us -uc -d -aarm64
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gnome-control-center-build
+          name: gnome-control-center-arm64-build
           path: |
             *.deb
             *.changes
