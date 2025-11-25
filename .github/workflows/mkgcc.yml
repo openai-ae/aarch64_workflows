@@ -1,4 +1,4 @@
-name: Build CyrOS Mobile gnome-control-center
+name: Build CyrOS Mobile gnome-control-center (Cross-Compile)
 
 on:
   workflow_dispatch:
@@ -6,89 +6,116 @@ on:
       branch:
         description: "Branch to build"
         required: true
-        default: "group/next/gnome-48"
+        default: "group/next/gnome-47"
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest  # Use x86_64 for cross-compiling to ARM64
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Install build dependencies
+      - name: Set up cross-compilation environment
         run: |
           sudo apt-get update
+          # Install cross-compilation tools
           sudo apt-get install -y \
-            git build-essential meson ninja-build pkg-config \
-            gettext libglib2.0-dev libgirepository1.0-dev \
-            libgdk-pixbuf-2.0-dev libxml2-utils \
-            python3-pip python3-setuptools python3-wheel \
-            dh-sequence-gnome equivs \
-            libpulse-dev libcairo2-dev libpango1.0-dev \
-            libgraphene-1.0-dev libgtk-4-dev libadwaita-1-dev \
-            libgnome-desktop-4-dev libibus-1.0-dev \
-            libxkbcommon-dev libegl-dev libgles2-mesa-dev \
-            libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            binutils-aarch64-linux-gnu \
+            pkg-config-aarch64-linux-gnu \
+            meson \
+            ninja-build \
+            cmake
+
+          # Add ARM64 architecture
+          sudo dpkg --add-architecture arm64
+          sudo apt-get update
+
+      - name: Install cross-compilation dependencies
+        run: |
+          # Install ARM64 development libraries
+          sudo apt-get install -y \
+            libglib2.0-dev:arm64 \
+            libgirepository1.0-dev:arm64 \
+            libgtk-4-dev:arm64 \
+            libadwaita-1-dev:arm64 \
+            libgdk-pixbuf-2.0-dev:arm64 \
+            libpango1.0-dev:arm64 \
+            libcairo2-dev:arm64 \
+            libgraphene-1.0-dev:arm64 \
+            libxkbcommon-dev:arm64 \
+            libpulse-dev:arm64 \
+            libgnome-desktop-4-dev:arm64 \
+            libibus-1.0-dev:arm64
 
       - name: Clone gnome-control-center
         run: |
           git clone --depth=1 -b ${{ github.event.inputs.branch }} https://github.com/droidian/gnome-control-center.git src
 
-      - name: Properly patch GTK version requirement
+      - name: Set up cross-compilation environment variables
         run: |
-          cd src
-          echo "=== Patching GTK version requirements ==="
-          # Find and patch all GTK version requirements
-          find . -type f \( -name "meson.build" -o -name "*.meson" \) -exec grep -l "gtk4" {} \; | while read file; do
-            echo "Patching file: $file"
-            # Use sed with backup and proper regex
-            sudo sed -i.bak 's/gtk4 >= [0-9]\+\.[0-9]\+\.[0-9]\+/gtk4 >= 4.14.0/g' "$file"
-            sudo sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/g' "$file"
-          done
-          
-          # Verify the patch worked
-          echo "=== Checking GTK requirements after patching ==="
-          find . -type f \( -name "meson.build" -o -name "*.meson" \) -exec grep -h "gtk4" {} \; | grep ">=" | head -5
+          echo "CC=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CXX=aarch64-linux-gnu-g++" >> $GITHUB_ENV
+          echo "AR=aarch64-linux-gnu-ar" >> $GITHUB_ENV
+          echo "STRIP=aarch64-linux-gnu-strip" >> $GITHUB_ENV
+          echo "PKG_CONFIG=aarch64-linux-gnu-pkg-config" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig" >> $GITHUB_ENV
+          echo "PKG_CONFIG_SYSROOT_DIR=/" >> $GITHUB_ENV
+          echo "PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
 
-      - name: Try alternative branch with older GTK requirements
+      - name: Build with cross-compilation
         run: |
           cd src
-          # If patching doesn't work, try an older branch
-          git branch -a | grep -E "gnome-4[567]" | head -3
-          # Uncomment the line below if patching fails
-          # git checkout group/next/gnome-47 || git checkout group/next/gnome-46
+          
+          # Set up cross-compilation meson build
+          meson setup build-cross --prefix=/usr \
+            --cross-file cross-arm64.txt \
+            --buildtype=release \
+            -Ddocumentation=false \
+            -Ddroidian=true
 
-      - name: Build with direct Meson approach
+          # Compile for ARM64
+          meson compile -C build-cross
+
+          # Install to staging directory
+          DESTDIR=$(pwd)/debian/gnome-control-center meson install -C build-cross
+
+      - name: Create cross-compilation file
+        run: |
+          cat > src/cross-arm64.txt << 'EOF'
+          [binaries]
+          c = 'aarch64-linux-gnu-gcc'
+          cpp = 'aarch64-linux-gnu-g++'
+          ar = 'aarch64-linux-gnu-ar'
+          strip = 'aarch64-linux-gnu-strip'
+          pkgconfig = 'aarch64-linux-gnu-pkg-config'
+
+          [host_machine]
+          system = 'linux'
+          cpu_family = 'aarch64'
+          cpu = 'aarch64'
+          endian = 'little'
+
+          [properties]
+          pkg_config_libdir = ['/usr/lib/aarch64-linux-gnu/pkgconfig', '/usr/share/pkgconfig']
+          EOF
+
+      - name: Create ARM64 Debian package
         run: |
           cd src
-          # Build directly with Meson to have more control
-          meson setup build --prefix=/usr --buildtype=plain \
-            -Dlocation-services=enabled \
-            -Dprivileged_group=sudo \
-            -Ddocumentation=true \
-            -Ddistributor_logo=/usr/share/pixmaps/ubuntu-logo-text.png \
-            -Ddark_mode_distributor_logo=/usr/share/pixmaps/ubuntu-logo-text-dark.png \
-            -Ddroidian=true \
-            -Dgtk4:version_override=true
-          
-          meson compile -C build
-          
-          # Create installation directory and package
-          mkdir -p debian/gnome-control-center
-          DESTDIR=$(pwd)/debian/gnome-control-center meson install -C build
-          
-          # Create DEBIAN control file
           mkdir -p debian/gnome-control-center/DEBIAN
+          
           cat > debian/gnome-control-center/DEBIAN/control << EOF
           Package: gnome-control-center
           Version: 48.2-1cyros
           Architecture: arm64
           Maintainer: CyrOS Build <build@cyros.org>
-          Description: GNOME Control Center for CyrOS Mobile
-           Custom build for CyrOS Mobile with ARM64 support.
+          Description: GNOME Control Center for CyrOS Mobile (Cross-Compiled)
+           Cross-compiled build for CyrOS Mobile with ARM64 support.
           EOF
-          
+
           # Build the deb package
           dpkg-deb --build debian/gnome-control-center
           mv debian/gnome-control-center.deb ../gnome-control-center_48.2-1cyros_arm64.deb
@@ -96,6 +123,6 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gnome-control-center-arm64-build
+          name: gnome-control-center-cross-compiled
           path: |
             *.deb
