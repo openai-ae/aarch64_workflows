@@ -20,13 +20,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git build-essential pkg-config \
+            git build-essential meson ninja-build pkg-config \
             gettext libglib2.0-dev libgirepository1.0-dev \
             libgdk-pixbuf-2.0-dev libxml2-utils \
             python3-pip python3-setuptools python3-wheel \
             dh-sequence-gnome equivs \
             libpulse-dev libcairo2-dev libpango1.0-dev \
-            libgraphene-1.0-dev \
+            libgraphene-1.0-dev libgtk-4-dev libadwaita-1-dev \
+            libgnome-desktop-4-dev libibus-1.0-dev \
             libxkbcommon-dev libegl-dev libgles2-mesa-dev \
             libgl1-mesa-dev libdrm-dev libgbm-dev libx11-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
@@ -37,11 +38,12 @@ jobs:
             libgstreamer1.0-dev \
             gir1.2-gst-plugins-base-1.0
 
-      - name: Check system architecture and GTK version
+      - name: Check system architecture and tools
         run: |
           echo "Architecture: $(uname -m)"
           echo "GTK version: $(pkg-config --modversion gtk4)"
-          echo "Building for ARM64 (aarch64)"
+          echo "Meson version: $(meson --version || echo 'Meson not found')"
+          echo "Ninja version: $(ninja --version || echo 'Ninja not found')"
 
       - name: Clone gnome-control-center
         run: |
@@ -51,17 +53,28 @@ jobs:
         run: |
           cd src
           # Lower the GTK requirement to match available version
-          sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/' meson.build || echo "Could not patch meson.build"
-          # Also check for other files that might have GTK requirements
+          sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/' meson.build || echo "Could not patch main meson.build"
+          # Check for other files that might have GTK requirements
+          find . -name "*.meson" -o -name "meson.build" | xargs grep -l "gtk4" 2>/dev/null | head -5
+          # Patch any found files
           find . -name "*.meson" -exec sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/g' {} + 2>/dev/null || true
+          find . -name "meson.build" -exec sed -i 's/gtk4 >= 4\.15\.2/gtk4 >= 4.14.0/g' {} + 2>/dev/null || true
 
-      - name: Install specific build dependencies
+      - name: Install remaining build dependencies
         run: |
           cd src
-          # Use apt-get build-dep instead of mk-build-deps
+          # Install build dependencies using apt
           sudo apt-get build-dep -y . || true
-          # Install any missing dependencies manually
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libgnome-desktop-4-dev
+          # Install any commonly missing dependencies
+          sudo apt-get install -y \
+            libmalcontent-0-dev \
+            libgnome-bluetooth-3.0-dev \
+            libnm-dev \
+            libnma-dev \
+            libcolord-dev \
+            libgeoclue-2-dev \
+            libgweather-4-dev \
+            libpolkit-gobject-1-dev
 
       - name: Build gnome-control-center for ARM64
         run: |
