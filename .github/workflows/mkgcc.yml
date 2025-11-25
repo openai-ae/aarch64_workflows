@@ -37,22 +37,35 @@ jobs:
             libgstreamer1.0-dev \
             gir1.2-gst-plugins-base-1.0
 
-      - name: Install Vulkan and shader compiler
+      - name: Search for shader compiler packages
+        run: |
+          apt-cache search glslc
+          apt-cache search shader
+          apt-cache search spirv
+
+      - name: Install Vulkan and alternative shader tools
         run: |
           sudo apt-get install -y \
             vulkan-tools \
             libvulkan-dev \
-            shaderc \
-            glslang-tools
+            glslang-tools \
+            spirv-tools
 
-      - name: Build GTK 4.16 from source
+      - name: Check if glslc is available
+        run: |
+          which glslc || echo "glslc not found"
+          glslang-tools --version || echo "glslang-tools version check failed"
+
+      - name: Build GTK 4.16 from source (with Vulkan disabled)
         run: |
           mkdir -p ~/src && cd ~/src
           git clone https://gitlab.gnome.org/GNOME/gtk.git
           cd gtk
           git checkout 4.16.10
-          # Build with GStreamer disabled to avoid potential issues
-          meson setup build --prefix=/opt/gtk4 --buildtype=release -Dmedia-gstreamer=disabled
+          # Build with both GStreamer and Vulkan disabled to avoid dependencies
+          meson setup build --prefix=/opt/gtk4 --buildtype=release \
+            -Dmedia-gstreamer=disabled \
+            -Dvulkan=disabled
           meson compile -C build
           sudo meson install -C build
 
