@@ -37,23 +37,24 @@ jobs:
             libgstreamer1.0-dev \
             gir1.2-gst-plugins-base-1.0
 
-      - name: Build GTK 4.16 from source (try with GStreamer)
+      - name: Install Vulkan and shader compiler
+        run: |
+          sudo apt-get install -y \
+            vulkan-tools \
+            libvulkan-dev \
+            shaderc \
+            glslang-tools
+
+      - name: Build GTK 4.16 from source
         run: |
           mkdir -p ~/src && cd ~/src
           git clone https://gitlab.gnome.org/GNOME/gtk.git
           cd gtk
           git checkout 4.16.10
-          # First try building with GStreamer auto-detection
-          if meson setup build --prefix=/opt/gtk4 --buildtype=release -Dmedia-gstreamer=auto; then
-            echo "GTK configured successfully with GStreamer"
-            meson compile -C build
-            sudo meson install -C build
-          else
-            echo "GTK configuration failed, retrying without GStreamer"
-            meson setup build --prefix=/opt/gtk4 --buildtype=release -Dmedia-gstreamer=disabled --wipe
-            meson compile -C build
-            sudo meson install -C build
-          fi
+          # Build with GStreamer disabled to avoid potential issues
+          meson setup build --prefix=/opt/gtk4 --buildtype=release -Dmedia-gstreamer=disabled
+          meson compile -C build
+          sudo meson install -C build
 
       - name: Set GTK environment
         run: |
