@@ -71,7 +71,8 @@ jobs:
             libmalcontent-0-dev \
             libmm-glib-dev \
             libnma-gtk4-dev \
-            tecla || true
+            tecla \
+            dh-sequence-gnome || true
 
       - name: Clone Droidian gnome-control-center
         run: |
