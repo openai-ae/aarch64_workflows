@@ -32,14 +32,21 @@ jobs:
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
             gstreamer1.0-libav libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-bad1.0-dev \
             gir1.2-gst-plugins-base-1.0
 
-      - name: Install GStreamer player development package
+      - name: Search for GStreamer player packages
+        run: |
+          apt-cache search gstreamer | grep -i player
+          apt-cache search libgstreamer | grep -i player
+
+      - name: Install all GStreamer development packages
         run: |
           sudo apt-get install -y \
-            libgstreamer-plugins-bad1.0-dev \
-            libgstreamer-player-1.0-dev \
-            gstreamer1.0-player-1.0
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-good1.0-dev \
+            libgstreamer-plugins-bad1.0-dev
 
       - name: Build GTK 4.16 from source
         run: |
@@ -47,7 +54,8 @@ jobs:
           git clone https://gitlab.gnome.org/GNOME/gtk.git
           cd gtk
           git checkout 4.16.10
-          meson setup build --prefix=/opt/gtk4 --buildtype=release
+          # Try with auto-features enabled to see what's available
+          meson setup build --prefix=/opt/gtk4 --buildtype=release -Dmedia-gstreamer=auto
           meson compile -C build
           sudo meson install -C build
 
