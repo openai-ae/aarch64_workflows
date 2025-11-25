@@ -13,10 +13,15 @@ jobs:
     runs-on: ubuntu-24.04-arm
 
     steps:
-      - name: Install base tools
+      - name: Install build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y git devscripts build-essential lintian
+          sudo apt-get install -y \
+            git \
+            devscripts \
+            build-essential \
+            equivs \
+            lintian
 
       - name: Clone Droidian gnome-control-center
         run: |
@@ -24,20 +29,20 @@ jobs:
           cd src
           git checkout ${{ github.event.inputs.branch }} || true
 
-      - name: Install package build dependencies
+      - name: Generate & install build-deps safely
         run: |
           cd src
-          sudo apt-get update
-          sudo apt-get install -y $(dpkg-checkbuilddeps 2>&1 | sed 's/dpkg-checkbuilddeps: error: Unmet build dependencies: //')
+          # Create a temporary control file
+          mk-build-deps --install --remove --tool "apt-get -y --no-install-recommends" debian/control
 
       - name: Build Debian package
         run: |
           cd src
           dpkg-buildpackage -b -us -uc
 
-      - name: Gather artifacts
+      - name: Collect artifacts
         run: |
-          mkdir artifacts
+          mkdir -p artifacts
           cp -v *.deb artifacts/ || true
           cp -v *.build artifacts/ || true
           cp -v *.changes artifacts/ || true
