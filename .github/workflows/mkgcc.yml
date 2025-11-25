@@ -52,7 +52,6 @@ jobs:
             libtool \
             autoconf \
             automake \
-            # GNOME / GTK / common deps (best-effort list; add extras if needed)
             libglib2.0-dev \
             libgtk-4-dev \
             libgirepository1.0-dev \
